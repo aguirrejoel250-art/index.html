@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ruido Dimensional - Puzzle</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg-color: #050510;
+      --card-bg: rgba(10, 10, 25, 0.95);
+      --accent: #9b5cff;
+      --accent-soft: rgba(155, 92, 255, 0.4);
+      --accent-strong: #00ffd5;
+      --danger: #ff4b81;
+      --text-main: #f6f6ff;
+      --text-soft: #a9a9d2;
+      --border-soft: rgba(255, 255, 255, 0.08);
+      --glow-soft: 0 0 20px rgba(155, 92, 255, 0.5);
+      --glow-strong: 0 0 30px rgba(0, 255, 213, 0.9);
+      --transition-fast: 0.25s ease;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #1b1740 0, #050510 55%, #000 100%);
+      color: var(--text-main);
+    }
+
+    .noise {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.15;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='noStitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.7'/%3E%3C/svg%3E");
+      mix-blend-mode: soft-light;
+      z-index: -1;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 960px;
+      padding: 24px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 24px;
+      border: 1px solid var(--border-soft);
+      padding: 24px 24px 28px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(14px);
+    }
+
+    .header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .title-block h1 {
+      font-size: 1.6rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: var(--text-soft);
+      max-width: 460px;
+      line-height: 1.5;
+      margin-top: 4px;
+    }
+
+    .badge {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--accent-soft);
+      background: radial-gradient(circle at top, rgba(155, 92, 255, 0.22), rgba(0, 0, 0, 0.4));
+      color: var(--accent);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 24px;
+      margin-top: 12px;
+    }
+
+    @media (max-width: 800px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Panel sliders */
+    .panel {
+      border-radius: 18px;
+      border: 1px solid var(--border-soft);
+      padding: 16px 16px 18px;
+      background: radial-gradient(circle at top left, rgba(155, 92, 255, 0.08), rgba(0, 0, 0, 0.6));
+    }
+
+    .panel-title {
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-soft);
+      margin-bottom: 8px;
+    }
+
+    .panel-description {
+      font-size: 0.85rem;
+      color: var(--text-soft);
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .slider-value {
+      font-size: 0.8rem;
+      width: 32px;
+      text-align: right;
+      color: var(--text-soft);
+      opacity: 0.9;
+    }
+
+    /* Portal */
+    .portal-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .portal {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1/1;
+      border-radius: 999px;
+      background: radial-gradient(circle, #211953 0, #0b071a 52%, #000 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      transition: box-shadow 0.3s;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .portal-ring {
+      position: absolute;
+      width: 78%;
+      height: 78%;
+      border-radius: 999px;
+      border: 2px solid rgba(155, 92, 255, 0.7);
+      box-shadow: 0 0 18px rgba(155, 92, 255, 0.7);
+    }
+
+    .portal-noise {
+      position: absolute;
+      width: 180%;
+      height: 180%;
+      background-image: radial-gradient(circle at 20% 20%, rgba(0, 255, 213, 0.3) 0, transparent 60%),
+                        radial-gradient(circle at 80% 80%, rgba(155, 92, 255, 0.4) 0, transparent 60%);
+      opacity: 0.35;
+      filter: blur(6px);
+      animation: swirl 12s linear infinite;
+    }
+
+    @keyframes swirl {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .portal-core {
+      position: relative;
+      width: 40%;
+      height: 40%;
+      border-radius: 999px;
+      background: radial-gradient(circle at 50% 30%, #ffffff 0, #00ffd5 20%, #5a32ff 55%, transparent 70%);
+      box-shadow: 0 0 40px rgba(0, 255, 213, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* Partículas */
+    .particles {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+    }
+
+    .particle {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: rgba(0,255,213,0.8);
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(0,255,213,1);
+      animation: floatUp 3s linear infinite;
+      opacity: 0.6;
+    }
+
+    @keyframes floatUp {
+      0% { transform: translateY(20px) scale(0.6); opacity: 0.1; }
+      50% { opacity: 0.8; }
+      100% { transform: translateY(-80px) scale(1); opacity: 0; }
+    }
+
+    /* NIEBLA cuando se resuelve */
+    .portal.solved::after {
+      content: "";
+      position: absolute;
+      inset: -20%;
+      background: radial-gradient(circle, rgba(0,255,213,0.3), transparent 70%);
+      filter: blur(40px);
+      opacity: 0;
+      animation: portalFog 2.5s ease-out forwards;
+    }
+
+    @keyframes portalFog {
+      0% { opacity: 0; transform: scale(0.6); }
+      60% { opacity: 0.8; transform: scale(1.3); }
+      100% { opacity: 0; transform: scale(1.6); }
+    }
+
+    /* Pista dinámica */
+    #hint-message {
+      margin-top: 12px;
+      padding: 8px 12px;
+      font-size: 0.82rem;
+      background: rgba(255, 120, 120, 0.08);
+      border-left: 2px solid rgba(255, 120, 120, 0.4);
+      color: #ff9ea8;
+      display: none;
+      border-radius: 6px;
+    }
+
+    /* Status */
+    .status-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 0.85rem;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .stability-fill {
+      height: 8px;
+      width: 100%;
+      background: linear-gradient(90deg, #ff4b81, #ffb857, #00ffd5);
+      transform-origin: left;
+      transform: scaleX(0);
+      transition: transform 0.2s ease-out;
+      border-radius: 12px;
+    }
+
+    .hidden-message {
+      display: none;
+      background: rgba(0,255,213,0.1);
+      border-left: 2px solid rgba(0,255,213,0.4);
+      padding: 12px;
+      color: #a0ffe8;
+      border-radius: 6px;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+
+<body>
+<div class="noise"></div>
+
+<div class="container">
+  <div class="card">
+    <div class="header">
+      <div class="title-block">
+        <h1>Ruido Dimensional</h1>
+        <p class="subtitle">
+          El campamento flota en una dimensión de bolsillo inestable.
+          Ajusta las frecuencias… la realidad depende de ello.
+        </p>
+      </div>
+      <div class="badge">Puzzle · Estabilizar la Dimensión</div>
+    </div>
+
+    <div class="layout">
+
+      <!-- PANEL SLIDERS -->
+      <section class="panel">
+        <div class="panel-title">Panel de Frecuencias</div>
+        <p class="panel-description">
+          Las cinco frecuencias ancla vibran fuera de fase.
+          Ajusta cada una hasta que la estabilidad dimensional se fije.
+        </p>
+
+        <div class="slider-row">
+          <div class="slider-label">F1 · Norte</div>
+          <input type="range" min="0" max="100" value="50" class="freq-slider">
+          <div class="slider-value" id="value-0">50</div>
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">F2 · Sur</div>
+          <input type="range" min="0" max="100" value="50" class="freq-slider">
+          <div class="slider-value" id="value-1">50</div>
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">F3 · Este</div>
+          <input type="range" min="0" max="100" value="50" class="freq-slider">
+          <div class="slider-value" id="value-2">50</div>
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">F4 · Oeste</div>
+          <input type="range" min="0" max="100" value="50" class="freq-slider">
+          <div class="slider-value" id="value-3">50</div>
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">F5 · Núcleo</div>
+          <input type="range" min="0" max="100" value="50" class="freq-slider">
+          <div class="slider-value" id="value-4">50</div>
+        </div>
+      </section>
+
+      <!-- PANEL PORTAL -->
+      <section class="panel">
+        <div class="portal-wrapper">
+
+          <div class="portal" id="portal">
+            <div class="portal-ring" id="portal-ring"></div>
+            <div class="portal-noise"></div>
+            <div class="particles" id="particles"></div>
+            <div class="portal-core">
+              <div class="portal-stability-text" id="portal-stability-text">
+                ESTABILIDAD · 0%
+              </div>
+            </div>
+          </div>
+
+          <div class="status-section">
+            <div class="status-row">
+              <span>Estabilidad dimensional</span>
+              <span id="stability-label">Crítica</span>
+            </div>
+
+            <div class="stability-fill" id="stability-fill"></div>
+
+            <div id="stability-caption" class="caption">
+              El aire vibra de forma peligrosa.
+            </div>
+
+            <div class="log">Δ Frecuencia total: <span id="log-span">???</span></div>
+
+            <div id="hint-message"></div>
+
+            <div class="hidden-message" id="hidden-message">
+              “La dimensión se inmoviliza un instante.  
+              Algo… o alguien… responde desde el otro lado.”
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- SONIDO -->
+<audio id="solve-sound" src="reliable-safe-327618.mp3"></audio>
+
+<script>
+/* Configuración */
+const targetFrequencies = [15, 60, 35, 80, 10];
+const toleranceForSuccess = 0;
+
+const sliders = document.querySelectorAll(".freq-slider");
+const valueLabels = [
+  document.getElementById("value-0"),
+  document.getElementById("value-1"),
+  document.getElementById("value-2"),
+  document.getElementById("value-3"),
+  document.getElementById("value-4")
+];
+
+const portal = document.getElementById("portal");
+const portalRing = document.getElementById("portal-ring");
+const portalStabilityText = document.getElementById("portal-stability-text");
+const stabilityLabel = document.getElementById("stability-label");
+const stabilityFill = document.getElementById("stability-fill");
+const stabilityCaption = document.getElementById("stability-caption");
+const logSpan = document.getElementById("log-span");
+const hiddenMessage = document.getElementById("hidden-message");
+const hintMessage = document.getElementById("hint-message");
+const solveSound = document.getElementById("solve-sound");
+
+let puzzleSolved = false;
+
+/* Pista dinámica */
+function showHint() {
+  let worstIndex = 0;
+  let worstDiff = 0;
+
+  sliders.forEach((slider, i) => {
+    let diff = Math.abs(targetFrequencies[i] - Number(slider.value));
+    if (diff > worstDiff) {
+      worstDiff = diff;
+      worstIndex = i;
+    }
+  });
+
+  const nombres = ["Norte", "Sur", "Este", "Oeste", "Núcleo"];
+  hintMessage.style.display = "block";
+  hintMessage.textContent =
+    `La frecuencia del ${nombres[worstIndex]} está muy fuera del rango…`;
+}
+
+/* Actualizar puzzle */
+function updatePuzzleState() {
+  const currentValues = [];
+
+  sliders.forEach((slider, index) => {
+    const val = Number(slider.value);
+    currentValues.push(val);
+    valueLabels[index].textContent = val;
+  });
+
+  let totalDiff = 0;
+  let maxPossibleDiff = 500;
+
+  for (let i = 0; i < targetFrequencies.length; i++) {
+    totalDiff += Math.abs(targetFrequencies[i] - currentValues[i]);
+  }
+
+  logSpan.textContent = totalDiff;
+
+  let stability = 100 - (totalDiff / maxPossibleDiff) * 100;
+  stability = Math.max(0, Math.min(100, stability));
+
+  stabilityFill.style.transform = `scaleX(${stability / 100})`;
+
+  portalStabilityText.textContent = `ESTABILIDAD · ${Math.round(stability)}%`;
+
+  if (stability < 30) {
+    stabilityLabel.textContent = "Crítica";
+    stabilityCaption.textContent = "La realidad se fractura...";
+  } else if (stability < 60) {
+    stabilityLabel.textContent = "Inestable";
+    stabilityCaption.textContent = "La vibración disminuye ligeramente.";
+  } else if (stability < 90) {
+    stabilityLabel.textContent = "Casi estable";
+    stabilityCaption.textContent = "La dimensión está cerca de anclarse.";
+  } else {
+    stabilityLabel.textContent = "Estable";
+    stabilityCaption.textContent = "Un último ajuste podría fijarlo...";
+  }
+
+  const isSolved = targetFrequencies.every((target, i) =>
+    Math.abs(target - currentValues[i]) <= toleranceForSuccess
+  );
+
+  if (!isSolved) showHint();
+
+  if (isSolved && !puzzleSolved) {
+    puzzleSolved = true;
+    onPuzzleSolved();
+  }
+}
+
+/* Evento de victoria */
+function onPuzzleSolved() {
+  try {
+    solveSound.currentTime = 0;
+    solveSound.play();
+  } catch(e){}
+
+  portal.classList.add("solved");
+  hiddenMessage.style.display = "block";
+  stabilityLabel.textContent = "Dimensión Anclada";
+  stabilityCaption.textContent = "El portal queda fijo, respirando con vida propia.";
+
+  portal.animate(
+    [
+      { transform: "scale(1.0)" },
+      { transform: "scale(1.07)" },
+      { transform: "scale(1.02)" }
+    ],
+    { duration: 500, iterations: 2 }
+  );
+}
+
+/* Crear partículas */
+const particlesContainer = document.getElementById("particles");
+for (let i = 0; i < 22; i++) {
+  const p = document.createElement("div");
+  p.classList.add("particle");
+  p.style.left = Math.random()*100+"%";
+  p.style.bottom = Math.random()*40+"%";
+  p.style.animationDelay = (Math.random()*2)+"s";
+  p.style.animationDuration = 2.5 + Math.random()*1.5 + "s";
+  particlesContainer.appendChild(p);
+}
+
+/* Input listener */
+sliders.forEach(slider => {
+  slider.addEventListener("input", updatePuzzleState);
+});
+
+updatePuzzleState();
+</script>
+
+</body>
+</html>

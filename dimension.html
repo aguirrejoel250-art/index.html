@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cubo Rúnico Rubik (offline)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #1f2933, #020617);
+      color: #e5e7eb;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 16px;
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      opacity: 0.78;
+      text-align: center;
+      max-width: 720px;
+    }
+
+    #canvas-container {
+      position: relative;
+      width: min(520px, 100%);
+      aspect-ratio: 16 / 9;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: radial-gradient(circle at center, #020617, #000);
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Escena con perspectiva */
+    #scene {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      perspective: 900px;
+      cursor: grab;
+      user-select: none;
+    }
+
+    #scene.dragging {
+      cursor: grabbing;
+    }
+
+    /* Cubo */
+    #cube {
+      position: relative;
+      width: 220px;
+      height: 220px;
+      transform-style: preserve-3d;
+      transform: rotateX(-25deg) rotateY(30deg);
+      transition: transform 0.1s linear;
+    }
+
+    .face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backface-visibility: hidden;
+      border-radius: 18px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      border: 1px solid rgba(15,23,42,0.9);
+      background: radial-gradient(circle at center, #020617, #000000);
+    }
+
+    /* Posición de las 6 caras */
+    .face-front  { transform: translateZ(110px); }
+    .face-back   { transform: rotateY(180deg) translateZ(110px); }
+    .face-right  { transform: rotateY(90deg) translateZ(110px); }
+    .face-left   { transform: rotateY(-90deg) translateZ(110px); }
+    .face-top    { transform: rotateX(90deg) translateZ(110px); }
+    .face-bottom { transform: rotateX(-90deg) translateZ(110px); }
+
+    /* Grid 3x3 dentro de cada cara */
+    .grid {
+      width: 88%;
+      height: 88%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 4px;
+    }
+
+    .cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.1rem;
+      border-radius: 10px;
+      box-shadow: inset 0 0 8px rgba(15,23,42,0.9);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      background: radial-gradient(circle at center, rgba(15,23,42,1), rgba(15,23,42,0.2));
+      text-shadow: 0 0 10px rgba(226,232,240,0.9);
+      color: #e5e7eb;
+    }
+
+    .panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+      padding: 8px 10px;
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+      backdrop-filter: blur(10px);
+      margin-top: 10px;
+      max-width: 750px;
+    }
+
+    button {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.8);
+      background: rgba(30, 64, 175, 0.3);
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      color: #e5e7eb;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.15s;
+      white-space: nowrap;
+    }
+
+    button:hover {
+      background: rgba(59, 130, 246, 0.7);
+      box-shadow: 0 0 16px rgba(59, 130, 246, 0.7);
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 0 4px rgba(59, 130, 246, 0.7);
+    }
+
+    .status {
+      font-size: 0.8rem;
+      opacity: 0.8;
+      text-align: center;
+      max-width: 700px;
+      margin-top: 6px;
+    }
+
+    .status span {
+      font-weight: 600;
+    }
+
+    .panel-title {
+      font-size: 0.75rem;
+      opacity: 0.7;
+      margin-right: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>CUBO RÚNICO DIMENSIONAL</h1>
+  <p class="subtitle">
+    Arrastra con el mouse para rotar el cubo. Usa las flechas para girar caras como un cubo Rubik (F, B, R, L, U, D).
+    El cubo inicia desordenado. Ganas cuando cada cara tiene una sola runa y todas las caras son diferentes.
+  </p>
+
+  <div id="canvas-container">
+    <div id="scene">
+      <div id="cube">
+        <!-- 0: Frente (F) -->
+        <div class="face face-front" data-face="0">
+          <div class="grid">
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          </div>
+        </div>
+        <!-- 1: Atrás (B) -->
+        <div class="face face-back" data-face="1">
+          <div class="grid">
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          </div>
+        </div>
+        <!-- 2: Derecha (R) -->
+        <div class="face face-right" data-face="2">
+          <div class="grid">
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          </div>
+        </div>
+        <!-- 3: Izquierda (L) -->
+        <div class="face face-left" data-face="3">
+          <div class="grid">
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          </div>
+        </div>
+        <!-- 4: Arriba (U) -->
+        <div class="face face-top" data-face="4">
+          <div class="grid">
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          </div>
+        </div>
+        <!-- 5: Abajo (D) -->
+        <div class="face face-bottom" data-face="5">
+          <div class="grid">
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel de controles -->
+  <div class="panel">
+    <span class="panel-title">Giros:</span>
+    <button data-move="F">F ⟳</button>
+    <button data-move="F'">F ⟲</button>
+    <button data-move="B">B ⟳</button>
+    <button data-move="B'">B ⟲</button>
+    <button data-move="R">R ⟳</button>
+    <button data-move="R'">R ⟲</button>
+    <button data-move="L">L ⟳</button>
+    <button data-move="L'">L ⟲</button>
+    <button data-move="U">U ⟳</button>
+    <button data-move="U'">U ⟲</button>
+    <button data-move="D">D ⟳</button>
+    <button data-move="D'">D ⟲</button>
+    <span class="panel-title" style="margin-left:8px;">Acciones:</span>
+    <button id="scramble-btn">Desordenar</button>
+    <button id="reset-btn">Reiniciar</button>
+    <button id="check-btn">Verificar</button>
+  </div>
+
+  <p class="status" id="status-text">
+    El cubo empieza desordenado. Usa las flechas para girar caras. Cuando cada cara tenga una sola runa distinta, está resuelto.
+  </p>
+
+  <script>
+    // ======== ESTADO DEL CUBO ========
+    // Índices de caras:
+    // 0 = F (frente), 1 = B (atrás), 2 = R (derecha),
+    // 3 = L (izquierda), 4 = U (arriba), 5 = D (abajo)
+
+    const runes = ['ᚠ','ᛃ','ᚱ','ᚨ','ᚾ','ᛟ']; // 6 runas
+
+    // cubeState[face][0..8] = índice de runa
+    let cubeState = [];
+
+    function createSolvedState() {
+      cubeState = [];
+      for (let f = 0; f < 6; f++) {
+        const face = new Array(9).fill(f); // 9 pegatinas del mismo "color/runa"
+        cubeState.push(face);
+      }
+    }
+
+    // Referencias DOM de las celdas de cada cara
+    const faceCells = [];
+    document.querySelectorAll('.face').forEach(faceEl => {
+      const idx = Number(faceEl.dataset.face);
+      faceCells[idx] = Array.from(faceEl.querySelectorAll('.cell'));
+    });
+
+    const statusText = document.getElementById('status-text');
+
+    function renderCube() {
+      for (let f = 0; f < 6; f++) {
+        for (let i = 0; i < 9; i++) {
+          const runeIndex = cubeState[f][i];
+          faceCells[f][i].textContent = runes[runeIndex];
+        }
+      }
+    }
+
+    // ======== ROTACIONES INTERNAS ========
+    // Rotar los 9 stickers de una cara en sentido horario
+    function rotateFaceArrayCW(faceIndex) {
+      const old = cubeState[faceIndex].slice();
+      const map = [6,3,0,7,4,1,8,5,2]; // nuevaPos -> viejaPos
+      const next = [];
+      for (let i = 0; i < 9; i++) {
+        next[i] = old[map[i]];
+      }
+      cubeState[faceIndex] = next;
+    }
+
+    // --- Movimiento F (cara frente) horario ---
+    function moveF_CW() {
+      const F = 0, B = 1, R = 2, L = 3, U = 4, D = 5;
+      rotateFaceArrayCW(F);
+
+      const temp = [
+        cubeState[U][6],
+        cubeState[U][7],
+        cubeState[U][8]
+      ];
+
+      // U bottom <- L right
+      cubeState[U][6] = cubeState[L][2];
+      cubeState[U][7] = cubeState[L][5];
+      cubeState[U][8] = cubeState[L][8];
+
+      // L right <- D top
+      cubeState[L][2] = cubeState[D][0];
+      cubeState[L][5] = cubeState[D][1];
+      cubeState[L][8] = cubeState[D][2];
+
+      // D top <- R left
+      cubeState[D][0] = cubeState[R][0];
+      cubeState[D][1] = cubeState[R][3];
+      cubeState[D][2] = cubeState[R][6];
+
+      // R left <- temp (U bottom)
+      cubeState[R][0] = temp[0];
+      cubeState[R][3] = temp[1];
+      cubeState[R][6] = temp[2];
+    }
+
+    // --- Movimiento B (cara atrás) horario ---
+    function moveB_CW() {
+      const F = 0, B = 1, R = 2, L = 3, U = 4, D = 5;
+      rotateFaceArrayCW(B);
+
+      const temp = [
+        cubeState[U][0],
+        cubeState[U][1],
+        cubeState[U][2]
+      ];
+
+      // U top <- R right
+      cubeState[U][0] = cubeState[R][2];
+      cubeState[U][1] = cubeState[R][5];
+      cubeState[U][2] = cubeState[R][8];
+
+      // R right <- D bottom
+      cubeState[R][2] = cubeState[D][8];
+      cubeState[R][5] = cubeState[D][7];
+      cubeState[R][8] = cubeState[D][6];
+
+      // D bottom <- L left
+      cubeState[D][6] = cubeState[L][0];
+      cubeState[D][7] = cubeState[L][3];
+      cubeState[D][8] = cubeState[L][6];
+
+      // L left <- temp (U top)
+      cubeState[L][0] = temp[0];
+      cubeState[L][3] = temp[1];
+      cubeState[L][6] = temp[2];
+    }
+
+    // --- Movimiento R (derecha) horario ---
+    function moveR_CW() {
+      const F = 0, B = 1, R = 2, L = 3, U = 4, D = 5;
+      rotateFaceArrayCW(R);
+
+      const temp = [
+        cubeState[U][2],
+        cubeState[U][5],
+        cubeState[U][8]
+      ];
+
+      // U right <- F right
+      cubeState[U][2] = cubeState[F][2];
+      cubeState[U][5] = cubeState[F][5];
+      cubeState[U][8] = cubeState[F][8];
+
+      // F right <- D right
+      cubeState[F][2] = cubeState[D][2];
+      cubeState[F][5] = cubeState[D][5];
+      cubeState[F][8] = cubeState[D][8];
+
+      // D right <- B left
+      cubeState[D][2] = cubeState[B][0];
+      cubeState[D][5] = cubeState[B][3];
+      cubeState[D][8] = cubeState[B][6];
+
+      // B left <- temp (U right)
+      cubeState[B][0] = temp[0];
+      cubeState[B][3] = temp[1];
+      cubeState[B][6] = temp[2];
+    }
+
+    // --- Movimiento L (izquierda) horario ---
+    function moveL_CW() {
+      const F = 0, B = 1, R = 2, L = 3, U = 4, D = 5;
+      rotateFaceArrayCW(L);
+
+      const temp = [
+        cubeState[U][0],
+        cubeState[U][3],
+        cubeState[U][6]
+      ];
+
+      // U left <- B right
+      cubeState[U][0] = cubeState[B][2];
+      cubeState[U][3] = cubeState[B][5];
+      cubeState[U][6] = cubeState[B][8];
+
+      // B right <- D left
+      cubeState[B][2] = cubeState[D][0];
+      cubeState[B][5] = cubeState[D][3];
+      cubeState[B][8] = cubeState[D][6];
+
+      // D left <- F left
+      cubeState[D][0] = cubeState[F][0];
+      cubeState[D][3] = cubeState[F][3];
+      cubeState[D][6] = cubeState[F][6];
+
+      // F left <- temp (U left)
+      cubeState[F][0] = temp[0];
+      cubeState[F][3] = temp[1];
+      cubeState[F][6] = temp[2];
+    }
+
+    // --- Movimiento U (arriba) horario ---
+    function moveU_CW() {
+      const F = 0, B = 1, R = 2, L = 3, U = 4, D = 5;
+      rotateFaceArrayCW(U);
+
+      const temp = [
+        cubeState[F][0],
+        cubeState[F][1],
+        cubeState[F][2]
+      ];
+
+      // F top <- L top
+      cubeState[F][0] = cubeState[L][0];
+      cubeState[F][1] = cubeState[L][1];
+      cubeState[F][2] = cubeState[L][2];
+
+      // L top <- B top
+      cubeState[L][0] = cubeState[B][0];
+      cubeState[L][1] = cubeState[B][1];
+      cubeState[L][2] = cubeState[B][2];
+
+      // B top <- R top
+      cubeState[B][0] = cubeState[R][0];
+      cubeState[B][1] = cubeState[R][1];
+      cubeState[B][2] = cubeState[R][2];
+
+      // R top <- temp (F top)
+      cubeState[R][0] = temp[0];
+      cubeState[R][1] = temp[1];
+      cubeState[R][2] = temp[2];
+    }
+
+    // --- Movimiento D (abajo) horario ---
+    function moveD_CW() {
+      const F = 0, B = 1, R = 2, L = 3, U = 4, D = 5;
+      rotateFaceArrayCW(D);
+
+      const temp = [
+        cubeState[F][6],
+        cubeState[F][7],
+        cubeState[F][8]
+      ];
+
+      // F bottom <- R bottom
+      cubeState[F][6] = cubeState[R][6];
+      cubeState[F][7] = cubeState[R][7];
+      cubeState[F][8] = cubeState[R][8];
+
+      // R bottom <- B bottom
+      cubeState[R][6] = cubeState[B][6];
+      cubeState[R][7] = cubeState[B][7];
+      cubeState[R][8] = cubeState[B][8];
+
+      // B bottom <- L bottom
+      cubeState[B][6] = cubeState[L][6];
+      cubeState[B][7] = cubeState[L][7];
+      cubeState[B][8] = cubeState[L][8];
+
+      // L bottom <- temp (F bottom)
+      cubeState[L][6] = temp[0];
+      cubeState[L][7] = temp[1];
+      cubeState[L][8] = temp[2];
+    }
+
+    // Versión antihoraria: 3 veces horario
+    function moveFace_CCW(fnCW) {
+      fnCW(); fnCW(); fnCW();
+    }
+
+    // Dispatcher de movimientos por nombre
+    function applyMove(code) {
+      switch (code) {
+        case "F":  moveF_CW(); break;
+        case "F'": moveFace_CCW(moveF_CW); break;
+        case "B":  moveB_CW(); break;
+        case "B'": moveFace_CCW(moveB_CW); break;
+        case "R":  moveR_CW(); break;
+        case "R'": moveFace_CCW(moveR_CW); break;
+        case "L":  moveL_CW(); break;
+        case "L'": moveFace_CCW(moveL_CW); break;
+        case "U":  moveU_CW(); break;
+        case "U'": moveFace_CCW(moveU_CW); break;
+        case "D":  moveD_CW(); break;
+        case "D'": moveFace_CCW(moveD_CW); break;
+      }
+      renderCube();
+    }
+
+    // ======== SCRAMBLE, RESET, CHECK ========
+    function scrambleCube(steps = 35) {
+      const moves = ["F","F'","B","B'","R","R'","L","L'","U","U'","D","D'"];
+      for (let i = 0; i < steps; i++) {
+        const m = moves[Math.floor(Math.random() * moves.length)];
+        applyMove(m);
+      }
+      statusText.textContent = 'Cubo desordenado. Usa las flechas para intentar resolverlo.';
+    }
+
+    function resetCube() {
+      createSolvedState();
+      renderCube();
+      statusText.textContent = 'Cubo reiniciado en estado resuelto (cada cara tiene su propia runa).';
+    }
+
+    function checkSolved() {
+      let ok = true;
+      const centerRunes = [];
+
+      for (let f = 0; f < 6; f++) {
+        const face = cubeState[f];
+        // ¿toda la cara con la misma runa?
+        const target = face[0];
+        if (!face.every(v => v === target)) {
+          ok = false;
+          break;
+        }
+        centerRunes.push(target);
+      }
+
+      const distinct = new Set(centerRunes);
+      if (ok && distinct.size === 6) {
+        statusText.innerHTML = '<span>¡Perfecto!</span> Cada cara tiene una runa única y uniforme. El cubo está resuelto.';
+      } else if (ok) {
+        statusText.textContent = 'Cada cara es uniforme, pero algunas runas se repiten entre caras.';
+      } else {
+        statusText.textContent = 'Todavía no. Algunas caras tienen runas mezcladas.';
+      }
+    }
+
+    // ======== ROTACIÓN DEL CUBO CON EL MOUSE ========
+    const scene = document.getElementById('scene');
+    const cube = document.getElementById('cube');
+
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let currentRotX = -25;
+    let currentRotY = 30;
+
+    scene.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      scene.classList.add('dragging');
+      startX = e.clientX;
+      startY = e.clientY;
+    });
+
+    scene.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const tempRotY = currentRotY + dx * 0.4;
+      const tempRotX = currentRotX - dy * 0.4;
+      cube.style.transform = `rotateX(${tempRotX}deg) rotateY(${tempRotY}deg)`;
+    });
+
+    scene.addEventListener('pointerup', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      scene.classList.remove('dragging');
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      currentRotY += dx * 0.4;
+      currentRotX -= dy * 0.4;
+    });
+
+    scene.addEventListener('pointerleave', () => {
+      isDragging = false;
+      scene.classList.remove('dragging');
+    });
+
+    // (clic en cara ya no cambia runas: solo se juega con movimientos tipo Rubik)
+
+    // ======== BOTONES ========
+    document.querySelectorAll('button[data-move]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const code = btn.getAttribute('data-move');
+        applyMove(code);
+      });
+    });
+
+    document.getElementById('scramble-btn').addEventListener('click', () => scrambleCube(35));
+    document.getElementById('reset-btn').addEventListener('click', resetCube);
+    document.getElementById('check-btn').addEventListener('click', checkSolved);
+
+    // ======== INICIO: estado resuelto + scramble automático ========
+    createSolvedState();
+    renderCube();
+    scrambleCube(35);
+  </script>
+</body>
+</html>
